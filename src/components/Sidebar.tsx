@@ -1,19 +1,25 @@
+"use client";
+
+import React from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Sidebar() {
     const params = useParams();
-    const slug = params.slug as string;
+    const slug = params?.slug as string | undefined;
+
+    const { user } = useAuth();
+
     const menuItems = [
         { name: 'Головна сторінка', href: '/' },
         { name: 'Про проєкт', href: '/about' },
         { name: 'Усі категорії', href: '/category' },
-        { name: 'Випадкова стаття', href: '/random' },
     ];
-
     return (
         <aside className="w-64 flex-shrink-0 bg-brand-border/30 border-r border-dark-color-bar/10 min-h-screen p-6 hidden md:block">
             <nav className="space-y-6">
+                {/* загальна навігація */}
                 <div>
                     <h3 className="text-website-name font-serif font-bold mb-3 text-sm uppercase tracking-wider">Навігація</h3>
                     <ul className="space-y-2">
@@ -26,11 +32,35 @@ export default function Sidebar() {
                         ))}
                     </ul>
                 </div>
-
-                {/* НОВИЙ БЛОК: з'являється лише якщо ми на сторінці статті */}
+                {/* серверні дії для авторизованих редакторів */}
+                {user && (
+                    <div className="animate-in fade-in duration-300">
+                        <h3 className="text-website-name font-serif font-bold mb-3 text-sm uppercase tracking-wider">Дії</h3>
+                        <ul className="space-y-2">
+                            <li>
+                                <Link
+                                    href="/article/edit"
+                                    className="text-search-button hover:text-website-name text-sm font-serif font-bold flex items-center gap-2 group"
+                                >
+                                    {/* Векторна іконка пера/написання статті */}
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 640 640"
+                                        fill="currentColor"
+                                        className="w-4 h-4 shrink-0 text-search-button group-hover:text-website-name transition-colors"
+                                    >
+                                        <path d="M539.3 64.1C549.2 63.3 558.9 67.1 565.9 74.1C572.9 81.1 576.7 90.8 575.9 100.7C571.9 150 558.5 226.9 529.6 300.4C527.8 304.9 524.1 308.3 519.4 309.7L438.5 334C434.6 335.2 432 338.7 432 342.8C432 347.9 436.1 352 441.2 352L479.8 352C491.8 352 499.5 364.8 493.3 375.1C489.3 381.8 485 388.3 480.6 394.7C478.6 397.6 475.6 399.7 472.2 400.8L374.5 430C370.6 431.2 368 434.7 368 438.8C368 443.9 372.1 448 377.2 448L393.2 448C407.8 448 414.2 465.4 402 473.4C334 518.4 264.3 516.7 219.6 504.7C206.9 501.3 195.6 494.8 185.2 486.8L112 560C103.2 568.8 88.8 568.8 80 560C71.2 551.2 71.2 536.8 80 528L160 448L160.5 448.5C161.2 447.2 162.1 446 163.2 444.9L320 288C328.8 279.2 328.8 264.8 320 256C311.2 247.2 296.8 247.2 288 256L153.7 390.2C144.8 399.1 129.7 394.6 128.7 382C124.4 328.8 138 258.9 201.3 195.6C292.4 104.5 455.5 70.9 539.2 64.1z"/>
+                                    </svg>
+                                    <span>Створити статтю</span>
+                                </Link>
+                            </li>
+                        </ul>
+                    </div>
+                )}
+                {/* взаємодія */}
                 {slug && (
                     <div className="animate-in fade-in duration-500">
-                        <h3 className="text-website-name font-serif font-bold mb-3 text-sm uppercase">Взаємодія</h3>
+                        <h3 className="text-website-name font-serif font-bold mb-3 text-sm uppercase tracking-wider">Взаємодія</h3>
                         <ul className="space-y-2">
                             <li>
                                 <Link
@@ -45,13 +75,6 @@ export default function Sidebar() {
                     </div>
                 )}
 
-                <div>
-                    <h3 className="text-website-name font-serif font-bold mb-3 text-sm uppercase tracking-wider">Інструменти</h3>
-                    <ul className="space-y-2 text-sm font-serif text-gray-500">
-                        <li>Посилання сюди</li>
-                        <li>Спеціальні сторінки</li>
-                    </ul>
-                </div>
             </nav>
         </aside>
     );

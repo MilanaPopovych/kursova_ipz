@@ -1,130 +1,178 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
 
-export default function CategoryPage() {
-    const params = useParams();
-    const categoryName = params.id ? decodeURIComponent(params.id as string) : "Усі категорії";
+export default function AllCategoriesPage() {
+    const router = useRouter();
+    const [searchTerm, setSearchTerm] = useState("");  // стан пошуку
+    const [sortOrder, setSortOrder] = useState(""); // стан фільтрації (спочатку пустий)
 
-    const [searchTerm, setSearchTerm] = useState("");
-    const [contentType, setContentType] = useState("");
+    const [categories, setCategories] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isSearchPerformed, setIsSearchPerformed] = useState(false); // Контроль першого пошуку
 
-    // новий стан: чи був виконаний пошук
-    const [isSearchPerformed, setIsSearchPerformed] = useState(false);
+    // головна функція передає і текст, і сортування
+    const fetchFilteredCategories = async (query: string, sort: string) => {
+        setLoading(true);
+        setError(null);
+        setIsSearchPerformed(true); // режим відображення результатів
 
-    const handleSearchTrigger = (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        // активуємо відображення результатів
-        setIsSearchPerformed(true);
-        // місце для запиту до бази PostgreSQL
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+        try {
+            // Формуємо REST-запит із двома query-параметрами: query та sort
+            // Наприклад: /api/categories?query=Комп&sort=asc
+            const response = await fetch(
+                `${baseUrl}/api/categories?query=${encodeURIComponent(query)}&sort=${sort}`,
+                {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error('Не вдалося отримати відфільтрований список категорій.');
+            }
+
+            const data = await response.json();
+            setCategories(data || []);
+        } catch (err: any) {
+            console.error("Fetch categories error:", err);
+            setError("Сервер не відповідає або сталася помилка валідації.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Обробник натискання кнопки "Шукати" (або Enter в інпуті)
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        fetchFilteredCategories(searchTerm, sortOrder);
+    };
+
+    // Обробник миттєвої зміни алфавітного фільтра в select
+    const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newSort = e.target.value;
+        setSortOrder(newSort);
+        // Запускаємо пошук автоматично при зміні сортування
+        fetchFilteredCategories(searchTerm, newSort);
     };
 
     return (
-        <div className="min-h-screen bg-white flex flex-col font-serif">
+        <div className="min-h-screen bg-white flex flex-col font-serif overflow-hidden">
             <Header />
 
-            <div className="flex flex-row flex-grow w-full max-w-[1400px] mx-auto">
+            <div className="flex flex-row flex-grow w-full max-w-[1400px] mx-auto overflow-hidden">
                 <Sidebar />
 
-                <main className="flex-grow p-6 md:p-10 w-full max-w-4xl">
-                    {/* заголовок категорії */}
+                <main className="flex-grow p-6 md:p-10 w-full max-w-4xl overflow-hidden">
+                    {/* Заголовок сторінки */}
                     <div className="bg-dark-color-bar px-6 py-3 mb-6 flex items-center shadow-sm">
-                        <h1 className="text-white text-xl md:text-2xl font-bold italic
-                        uppercase tracking-wide">
-                            Категорія: {categoryName}
+                        <h1 className="text-white text-xl md:text-2xl font-bold italic tracking-wide">
+                            Пошук категорій
                         </h1>
                     </div>
-                    {/* блок фільтрації */}
+
+                    {/* ПАНЕЛЬ ФІЛЬТРІВ ТА ПОШУКУ */}
                     <div className="space-y-4 mb-10 pl-2">
-                        {/* пошук */}
-                        <form onSubmit={handleSearchTrigger} className="flex h-12 max-w-2xl shadow-sm border
-                        border-dark-color-bar/10">
+
+                        {/* Текстовий пошук */}
+                        <form onSubmit={handleSearchSubmit} className="flex h-12 max-w-2xl shadow-sm border border-dark-color-bar/10">
                             <input
                                 type="text"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Пошук у цій категорії..."
-                                className="flex-grow px-5 bg-light-color-bar text-main-text
-                                placeholder:text-main-text/40 italic outline-none text-lg border-none"
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                                placeholder="Введіть ключові слова для пошуку категорії..."
+                                className="flex-grow px-5 bg-light-color-bar text-main-text placeholder:text-main-text/40 italic outline-none text-lg border-none"
                             />
                             <button
                                 type="submit"
-                                className="bg-search-button hover:bg-website-name transition-colors
-                                w-16 flex items-center justify-center flex-shrink-0 text-white"
+                                disabled={loading}
+                                className="bg-search-button hover:bg-website-name transition-colors w-16 flex items-center justify-center flex-shrink-0 text-white disabled:opacity-50"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                     viewBox="0 0 512 512"
-                                     fill="currentColor"
-                                     className="w-6 h-6">
-                                    <path d="M36.4 353.2c4.1-14.6 11.8-27.9 22.6-38.7l181.2-181.2 33.9-33.9c16.6 16.6 51.3 51.3 104 104l33.9 33.9-33.9 33.9-181.2 181.2c-10.7 10.7-24.1 18.5-38.7 22.6L30.4 510.6c-8.3 2.3-17.3 0-23.4-6.2S-1.4 489.3 .9 481L36.4 353.2zm55.6-3.7c-4.4 4.7-7.6 10.4-9.3 16.6l-24.1 86.9 86.9-24.1c6.4-1.8 12.2-5.1 17-9.7L91.9 349.5zm354-146.1c-16.6-16.6-51.3-51.3-104-104L308 65.5C334.5 39 349.4 24.1 352.9 20.6 366.4 7 384.8-.6 404-.6S441.6 7 455.1 20.6l35.7 35.7C504.4 69.9 512 88.3 512 107.4s-7.6 37.6-21.2 51.1c-3.5 3.5-18.4 18.4-44.9 44.9z"/>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor" className="w-6 h-6">
+                                    <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
                                 </svg>
                             </button>
                         </form>
-                        {/* вибір типу контенту */}
+
+                        {/* Новий фільтр: Алфавітний порядок */}
                         <div className="flex h-12 max-w-2xl shadow-sm border border-dark-color-bar/10">
                             <select
-                                value={contentType}
-                                onChange={(e) => {
-                                    setContentType(e.target.value);
-                                    setIsSearchPerformed(true); // активуємо при зміні типу
-                                }}
-                                className="flex-grow px-4 bg-light-color-bar text-main-text italic
-                                outline-none text-lg border-none appearance-none cursor-pointer"
+                                value={sortOrder}
+                                onChange={handleSortChange}
+                                className="flex-grow px-4 bg-light-color-bar text-website-links italic outline-none text-lg border-none appearance-none cursor-pointer"
                             >
-                                <option value="" disabled> Перегляд контенту в категорії... </option>
-                                <option value="articles"> Статті цієї категорії </option>
-                                <option value="authors"> Автори </option>
-                                <option value="subcategories"> Підкатегорії </option>
+                                <option value="" disabled>Оберіть алфавітний порядок відображення...</option>
+                                <option value="asc">Сортувати за алфавітом (А — Я)</option>
+                                <option value="desc">Сортувати за алфавітом (Я — А)</option>
                             </select>
-                            <div className="bg-search-button w-16 flex items-center justify-center
-                            flex-shrink-0 pointer-events-none text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                     fill="none" viewBox="0 0 24 24"
-                                     strokeWidth={2.5} stroke="currentColor"
-                                     className="w-7 h-7">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0m-9.75 0h9.75" />
+                            <div className="bg-search-button w-16 flex items-center justify-center flex-shrink-0 pointer-events-none text-white">
+                                {/* Іконка фільтрації/сортування */}
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-7 h-7">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v10.5" />
                                 </svg>
                             </div>
                         </div>
                     </div>
-                    {/* контроль відображення результатів */}
-                    {!isSearchPerformed ? (
-                        // стан до пошуку: коротке пояснення
-                        <div className="mt-12 p-8 border border-dashed border-dark-color-bar/20
-                        rounded-sm bg-brand-border/5">
-                            <p className="text-main-text/60 italic text-center text-lg">
-                                Оберіть параметри вище, щоб переглянути вміст категорії <br/>
-                                або знайти конкретну інформацію.
+
+                    {/* СТАН 1: СТОРИНКА ТІЛЬКИ ВІДKРИЛАСЯ (Нічого не виводимо, крім інструкції) */}
+                    {!isSearchPerformed && (
+                        <div className="mt-12 p-8 border border-dashed border-dark-color-bar/20 rounded-sm bg-brand-border/5">
+                            <p className="text-main-text/60 italic text-center text-lg leading-relaxed">
+                                Категорії знань не завантажуються автоматично для економії ресурсів ІС. <br/>
+                                <span className="text-website-name font-bold">Оберіть алфавітний порядок</span> або введіть текст вище для пошуку.
                             </p>
                         </div>
-                    ) : (
-                        // cтан після пошуку: заголовок та результати
-                        <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <h2 className="text-website-name text-lg font-bold italic border-b
-                            border-dark-color-bar/20 pb-2 uppercase mb-6">
-                                Список знайдених результатів:
+                    )}
+
+                    {/* СТАН 2: ОЧІКУВАННЯ ДАНИХ (LOADING) */}
+                    {loading && (
+                        <div className="text-center py-8 italic text-main-text animate-pulse">
+                            Сортування та фільтрація глобальних категорій у базі PostgreSQL...
+                        </div>
+                    )}
+
+                    {/* СТАН 3: СЕРВЕРНА ПОМИЛКА */}
+                    {!loading && error && (
+                        <div className="bg-[#FDF2F2] border-l-4 border-[#A01E36] p-4 text-sm font-serif italic text-[#A01E36]">
+                            {error}
+                        </div>
+                    )}
+
+                    {/* СТАН 4: ВИВЕДЕННЯ РЕЗУЛЬТАТІВ ПІСЛЯ ЗАСТОСУВАННЯ ФІЛЬТРА */}
+                    {!loading && !error && isSearchPerformed && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <h2 className="text-website-name text-lg font-bold italic border-b border-dark-color-bar/20 pb-2 uppercase mb-6">
+                                Знайдені категорії знань ({categories.length}):
                             </h2>
-                            {/* якщо результатів реально немає (масив порожній) */}
-                            {searchTerm === "немає" ? ( // Тимчасова умова для тесту
-                                <div className="py-10 text-center border border-dashed
-                                border-dark-color-bar/20 rounded-sm bg-brand-border/10">
+
+                            {categories.length === 0 ? (
+                                <div className="py-10 text-center border border-dashed border-dark-color-bar/20 rounded-sm bg-brand-border/10">
                                     <p className="text-main-text font-serif text-xl italic">
-                                        Результатів не знайдено
+                                        Категорій за такими критеріями фільтрації не знайдено.
                                     </p>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-brand-border/20 border-l-4
-                                    border-search-button hover:bg-brand-border/40
-                                    transition-colors cursor-pointer">
-                                        <h3 className="text-website-links font-bold text-xl mb-1">
-                                            Приклад знайденої статті</h3>
-                                        <p className="text-sm text-gray-600">
-                                            Результат, який з'явився лише після кліку на пошук.</p>
-                                    </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {categories.map((cat: any) => (
+                                        <div
+                                            key={cat.id}
+                                            onClick={() => router.push(`/category/${cat.id || cat.slug}`)}
+                                            className="p-5 bg-brand-border/10 border border-dark-color-bar/10 hover:border-website-name hover:bg-brand-border/30 transition-all cursor-pointer shadow-2xs rounded-sm flex flex-col justify-between"
+                                        >
+                                            <h3 className="text-website-links font-bold text-lg mb-2">
+                                                📁 {cat.name}
+                                            </h3>
+                                            <p className="text-xs text-gray-600 italic line-clamp-2">
+                                                {cat.description || "Опис структури знань відсутній."}
+                                            </p>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>

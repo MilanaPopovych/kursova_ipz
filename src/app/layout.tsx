@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Playfair_Display } from "next/font/google";
 import ConditionalFooter from "@/components/CustomFooter";
+import { AuthProvider } from "@/context/AuthContext"; // Імпортуємо провайдер контексту безпеки
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -26,12 +27,14 @@ export default function RootLayout({
             className={`${playfair.variable} h-full antialiased`}
         >
         <body className="min-h-full flex flex-col font-serif">
-        {/* основний контент сторінки займає весь вільний простір */}
-        <div className="flex-grow flex flex-col">
-            {children}
-        </div>
-        {/* футер з'явиться на всіх сторінках, крім головної та "про проєкт" */}
-        <ConditionalFooter />
+        {/* обгортка додатку в AuthProvider для глобального доступу до сесії користувача */}
+        <AuthProvider>
+            <div className="flex-grow flex flex-col">
+                {children}
+            </div>
+            {/* футер з'явиться на всіх сторінках, крім головної та "про проєкт" */}
+            <ConditionalFooter />
+        </AuthProvider>
         </body>
         </html>
     );

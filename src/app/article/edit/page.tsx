@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation'; // Імпортуємо роутер для перенаправлення
+import { useRouter } from 'next/navigation'; // роутер для перенаправлення
+import { articleService } from '@/services/api';
 
 // Динамічний імпорт Quill з патчем сумісності під Quill 2.0
 const ReactQuill = dynamic(
@@ -87,57 +88,33 @@ export default function EditArticlePage() {
 
     // ФУНКЦІЯ ОБРОБКИ ПУБЛІКАЦІЇ СТАТТІ
     const handlePublish = async () => {
-        // Базова валідація на клієнті
         if (!title.trim()) {
-            alert("Помилка: Назва статті обов'язкова для створення унікального URL (slug).");
+            alert("Помилка: Назва статті обов'язкова.");
             return;
         }
         if (!content.trim() || content === "<p><br></p>") {
-            alert("Помилка: Не можна опублікувати статтю без контенту.");
+            alert("Помилка: Контент не може бути порожнім.");
             return;
         }
 
         setIsSubmitting(true);
 
         try {
-            // Запит до вашого Spring Boot Бекенду
-            const response = await fetch('http://localhost:8080/api/articles', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    // Якщо у вас налаштовано Spring Security, сюди передається токен:
-                    // 'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({
-                    title: title,
-                    content: content,
-                    comment: comment // Передаємо лог ревізії для історії редагувань
-                }),
-            });
+            // ЗАСТОСУВАННЯ ФУНКЦІЇ СЕРВІСУ: замість 20 рядків fetch — один рядок сервісу
+            const data = await articleService.createArticle(title, content, comment);
 
-            if (!response.ok) {
-                throw new Error('Сервер повернув помилку при збереженні.');
-            }
-
-            const data = await response.json();
-
-            // Припустимо, Spring Boot повертає об'єкт статті зі згенерованим унікальним slug або id
             const articleSlug = data.slug || data.id;
-
-            alert("Статтю успішно збережено в системі WiKPIdia!");
-
-            // Навігаційне перенесення користувача на сторінку створеної статті
+            alert("Статтю успішно опубліковано!");
             router.push(`/article/${articleSlug}`);
 
         } catch (error) {
             console.error("Publish error:", error);
-            alert("Критична помилка відправки. Перевірте, чи запущений ваш Spring Boot додаток.");
+            alert("Критична помилка відправки. Перевірте підключення до бекенду.");
         } finally {
             setIsSubmitting(false);
         }
     };
-
-    // Функція-парсер рамок для попереднього перегляду
+    // функція-парсер рамок для попереднього перегляду
     const renderContentWithCaptions = (htmlString: string) => {
         if (typeof window === 'undefined' || !htmlString) return htmlString;
 

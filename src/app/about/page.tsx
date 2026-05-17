@@ -156,10 +156,10 @@ export default function AboutPage() {
             </div>
             {/* футер інф. сторінки */}
             <footer className="mt-auto py-8 w-full max-w-6xl flex justify-between text-website-links font-bold italic text-lg">
-                <Link href="/search" className="hover:underline"> Пошук </Link>
-                <Link href="/" className="hover:underline"> Головна сторінка </Link>
-                <Link href="https://library.kpi.ua" className="hover:underline"> Бібліотека КПІ </Link>
-                <Link href="https://kpi.ua" className="hover:underline"> Офіційний сайт КПІ </Link>
+                <Link href="/search" className="hover:underline">Пошук</Link>
+                <Link href="/" className="hover:underline">Головна сторінка</Link>
+                <Link href="https://library.kpi.ua" className="hover:underline">Бібліотека КПІ</Link>
+                <Link href="https://kpi.ua" className="hover:underline">Офіційний сайт КПІ</Link>
             </footer>
 
         </main>

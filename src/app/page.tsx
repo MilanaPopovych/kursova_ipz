@@ -8,9 +8,7 @@ export default function HomePage() {
     const router = useRouter();
 
     const handleSearch = (e?: React.FormEvent) => {
-        if (e) e.preventDefault(); // зупиняємо перезавантаження сторінки
-
-        // якщо запит є — додаємо його в URL, якщо порожньо — просто йдемо на /search
+        if (e) e.preventDefault();
         if (query.trim()) {
             router.push(`/search?q=${encodeURIComponent(query.trim())}`);
         } else {
@@ -21,7 +19,6 @@ export default function HomePage() {
     return (
         <main className="flex flex-col items-center justify-between h-screen
         bg-white p-4 md:p-6 overflow-hidden">
-
             {/* заголовок та підзаголовок */}
             <div className="text-center mt-4 md:mt-10">
                 <h1 className="text-website-name text-3xl md:text-5xl
@@ -32,8 +29,6 @@ export default function HomePage() {
                     Університетська база знань
                 </p>
             </div>
-
-            {/* логотип та пошук */}
             <div className="flex flex-col items-center justify-center flex-grow w-full gap-8">
                 {/* логотип */}
                 <img
@@ -41,7 +36,6 @@ export default function HomePage() {
                     alt="WiKPIdia Logo"
                     className="w-44 h-44 md:w-56 md:h-56 object-contain"
                 />
-
                 {/* панель пошуку */}
                 <form
                     onSubmit={handleSearch}
@@ -79,8 +73,8 @@ export default function HomePage() {
                 <div className="bg-brand-border p-4 rounded-sm min-w-[260px]
                 text-main-text font-serif text-sm shadow-sm border border-dark-color-bar/10">
                     <p className="font-bold mb-1 border-b border-dark-color-bar/20 pb-1">Автори:</p>
-                    <p>Шеремета А. Р. (ел. пошта)</p>
-                    <p>Попович М. О. (ел. пошта)</p>
+                    <p>Шеремета А. Р. (sheremeta.a.r.-io46@edu.kpi.ua)</p>
+                    <p>Попович М. О. (popovych.m.o.-io46@edu.kpi.ua)</p>
                 </div>
 
                 <div className="bg-brand-border p-4 rounded-sm min-w-[260px] text-main-text
@@ -98,7 +92,6 @@ export default function HomePage() {
                     </p>
                 </div>
             </div>
-
         </main>
     );
 }
