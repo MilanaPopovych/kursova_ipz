@@ -1,0 +1,19 @@
+# === Фронтенд (Next.js / Node.js) ===
+**/node_modules/
+**/.next/
+**/.env.local
+**/.env
+**/out/
+**/build/
+
+# === Бекенд (Spring Boot / Java) ===
+**/target/
+**/.idea/
+*.class
+*.log
+*.jar
+*.war
+
+# === Системні файли ОС ===
+.DS_Store
+Thumbs.db
