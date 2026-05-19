@@ -6,8 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation'; // роутер для перенаправлення
 import { articleService } from '@/services/api';
-
-// Динамічний імпорт Quill з патчем сумісності під Quill 2.0
+// динамічний імпорт Quill з патчем сумісності під Quill 2.0
 const ReactQuill = dynamic(
     async () => {
         const { default: RQ } = await import("react-quill-new");
@@ -40,13 +39,13 @@ import 'react-quill-new/dist/quill.snow.css';
 export default function EditArticlePage() {
     const router = useRouter(); // Ініціалізуємо роутер
 
-    // СТАНДАРТНІ СТАНИ ФОРМИ
-    const [title, setTitle] = useState(""); // Нове: стан для заголовка статті
+    // стандартні стани форми пошуку
+    const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [comment, setComment] = useState("");
     const [isMounted, setIsMounted] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false); // Стан деактивації кнопки при відправці
+    const [isSubmitting, setIsSubmitting] = useState(false); // стан деактивації кнопки при відправці
 
     const quillModulesRef = useRef<any>(null);
 

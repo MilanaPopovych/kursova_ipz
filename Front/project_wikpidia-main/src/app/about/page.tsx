@@ -34,7 +34,6 @@ export default function AboutPage() {
                         {/* Шеремета */}
                         <div className="flex flex-col items-center text-center">
                             <div className="w-32 h-40 bg-light-color-bar flex items-center justify-center mb-4 border border-dark-color-bar/20">
-                                <span className="text-main-text/40 text-xs italic">Зображення</span>
                             </div>
                             <p className="text-main-text font-bold leading-tight mb-1">
                                 Шеремета Артем <br/> Русланович
@@ -84,7 +83,6 @@ export default function AboutPage() {
                         <div className="flex flex-col items-center text-center">
                             <div className="w-32 h-40 bg-light-color-bar flex items-center justify-center
                             mb-4 border border-dark-color-bar/20">
-                                <span className="text-main-text/40 text-xs italic">Зображення</span>
                             </div>
                             <p className="text-main-text font-bold leading-tight mb-1">
                                 Попович Мілана <br/> Олександрівна

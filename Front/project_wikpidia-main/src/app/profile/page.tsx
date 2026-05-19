@@ -17,7 +17,6 @@ export default function ProfilePage() {
     // стани для фільтрації та сортування
     const [pubSearch, setPubSearch] = useState("");
     const [pubSortOrder, setPubSortOrder] = useState("date-desc");
-
     // async mounting req
     useEffect(() => {
         setIsMounted(true);
@@ -30,9 +29,7 @@ export default function ProfilePage() {
         fetch(`${baseUrl}/api/users/profile`, {
             method: 'GET',
             headers: {
-                'Content-Type': 'application/json',
-                // Якщо налаштовано авторизацію, розкоментуйте рядок нижче:
-                // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Content-Type': 'application/json'
             }
         })
             .then((res) => {
@@ -47,7 +44,7 @@ export default function ProfilePage() {
             })
             .catch((err: any) => {
                 console.error("Profile load error:", err);
-                setError("Сервер вашого напарника не відповідає або сесія користувача застаріла.");
+                setError("Немає відповіді сервера або сесія користувача застаріла.");
             })
             .finally(() => {
                 setLoading(false);

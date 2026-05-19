@@ -10,7 +10,6 @@ export default function CategoryDetailPage() {
     const router = useRouter();
     const categoryId = params.id ? (params.id as string) : "";
     const categoryName = params.id ? decodeURIComponent(params.id as string).replace(/-/g, ' ') : "Категорія";
-
     // Пошукові фільтри
     const [searchTerm, setSearchTerm] = useState("");
     const [contentType, setContentType] = useState("articles"); // Початковий режим — статті
@@ -51,6 +50,7 @@ export default function CategoryDetailPage() {
             setLoading(false);
         }
     };
+
     // АВТОМАТИЧНА СИНХРОНІЗАЦІЯ: Оновлює контент відразу при відкритті сторінки або зміні фільтра в select
     useEffect(() => {
         fetchCategoryContent(searchTerm, contentType);
@@ -66,6 +66,12 @@ export default function CategoryDetailPage() {
         setContentType(selectedType); // useEffect автоматично викличе fetchCategoryContent
     };
 
+    // ОБРОБНИК ДЛЯ КНОПКИ ДОВАДАННЯ СТАТТІ В ПОТОЧНУ КАТЕГОРІЮ
+    const handleAddArticleRedirect = () => {
+        // перенаправляємо в текстовий редактор правок і прокидаємо ID категорії
+        router.push(`/article/create?categoryId=${encodeURIComponent(categoryId)}`);
+    };
+
     return (
         <div className="min-h-screen bg-white flex flex-col font-serif overflow-hidden">
             <Header />
@@ -73,12 +79,26 @@ export default function CategoryDetailPage() {
                 <Sidebar />
 
                 <main className="flex-grow p-6 md:p-10 w-full max-w-4xl overflow-hidden">
-                    {/* ЗАГОЛОВОК КАТЕГОРІЇ */}
-                    <div className="bg-dark-color-bar px-6 py-3 mb-6 flex items-center shadow-sm">
+
+                    {/* ЗАГОЛОВОК КАТЕГОРІЇ + КНОПКА ДОДАННЯ СТАТТІ */}
+                    <div className="bg-dark-color-bar px-6 py-3 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
                         <h1 className="text-white text-xl md:text-2xl font-bold italic uppercase tracking-wide">
                             Категорія: {categoryName}
                         </h1>
+
+                        {/* ІНТЕГРОВАНА КНОПКА ДОДАННЯ */}
+                        <button
+                            type="button"
+                            onClick={handleAddArticleRedirect}
+                            className="bg-search-button hover:bg-website-name text-white font-serif font-bold text-xs uppercase tracking-wider px-4 py-2 border border-white/20 transition-colors flex items-center justify-center gap-2 self-start sm:self-auto flex-shrink-0"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                            Додати статтю
+                        </button>
                     </div>
+
                     {/* БЛОК ФІЛЬТРАЦІЇ ТА ВНУТРІШНЬОГО ПОШУКУ */}
                     <div className="space-y-4 mb-10 pl-2">
                         <form onSubmit={handleSearchSubmit} className="flex h-12 max-w-2xl shadow-sm border border-dark-color-bar/10">
@@ -117,22 +137,19 @@ export default function CategoryDetailPage() {
                             </div>
                         </div>
                     </div>
-
-                    {/* СТАН ОЧІКУВАННЯ ВІДПОВІДІ (LOADING) */}
+                    {/* loading */}
                     {loading && (
                         <div className="text-center py-6 font-serif italic text-main-text animate-pulse">
-                            Синхронізація підконтенту з базою даних...
+                            Синхронізація контенту з базою даних...
                         </div>
                     )}
-
-                    {/* СТАН ПОМИЛКИ БЕКЕНДУ */}
+                    {/* backend err */}
                     {!loading && error && (
                         <div className="bg-[#FDF2F2] border-l-4 border-[#A01E36] p-4 text-sm font-serif italic text-[#A01E36]">
                             {error}
                         </div>
                     )}
-
-                    {/* ВІДОБРАЖЕННЯ ОТРЫМАНИХ РЕЗУЛЬТАТІВ */}
+                    {/* відображення результатів */}
                     {!loading && !error && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <h2 className="text-website-name text-lg font-bold italic border-b border-dark-color-bar/20 pb-2 uppercase mb-6">
