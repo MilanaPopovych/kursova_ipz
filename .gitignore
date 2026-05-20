@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # === Фронтенд (Next.js / Node.js) ===
 **/node_modules/
 **/.next/
@@ -61,3 +62,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 >>>>>>> 4288fe72958253c4b5e207e9331ccf9dc0febb4f
+=======
+node_modules/
+.next/
+target/
+.idea/
+.env
+.env.local
+*.log 
+>>>>>>> 82b2eca6e0567ffc568fc0c624c33f1770000ade
