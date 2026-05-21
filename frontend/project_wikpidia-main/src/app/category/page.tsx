@@ -4,18 +4,9 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
-// ДОДАНО: імпорти для авторизації та API
-import { useAuth } from "@/context/AuthContext";
-import { articleService } from "@/services/api";
 
 export default function AllCategoriesPage() {
     const router = useRouter();
-
-    // ДОДАНО: отримуємо користувача та токен
-    const { user, token } = useAuth();
-    // ДОДАНО: перевірка на адміна
-    const isAdmin = user && (user.role === 'Адміністратор' || user.role === 'Адмін');
-
     const [searchTerm, setSearchTerm] = useState("");
     const [sortOrder, setSortOrder] = useState("");
 
@@ -65,26 +56,6 @@ export default function AllCategoriesPage() {
         fetchFilteredCategories(searchTerm, newSort);
     };
 
-    // ДОДАНО: Функція видалення категорії
-    const handleDeleteCategory = async (categoryId: number, e: React.MouseEvent) => {
-        e.stopPropagation(); // Запобігає кліку по самій картці (щоб не перекинуло на сторінку)
-
-        if (!window.confirm("🚨 Ви впевнені, що хочете видалити цю категорію? Статті в ній не постраждають, просто відв'яжуться.")) return;
-
-        if (!token) {
-            alert("Помилка авторизації");
-            return;
-        }
-
-        try {
-            await articleService.deleteCategory(categoryId, token);
-            // Оновлюємо список категорій без перезавантаження всієї сторінки
-            fetchFilteredCategories(searchTerm, sortOrder);
-        } catch (err: any) {
-            alert(err.message || "Не вдалося видалити категорію");
-        }
-    };
-
     return (
         <div className="min-h-screen bg-white flex flex-col font-serif overflow-hidden">
             <Header />
@@ -93,12 +64,14 @@ export default function AllCategoriesPage() {
                 <Sidebar />
 
                 <main className="flex-grow p-6 md:p-10 w-full max-w-4xl overflow-hidden">
+                    {/* Заголовок */}
                     <div className="bg-dark-color-bar px-6 py-3 mb-6 flex items-center shadow-sm">
                         <h1 className="text-white text-xl md:text-2xl font-bold italic tracking-wide">
                             Пошук категорій
                         </h1>
                     </div>
 
+                    {/* Панель фільтрів */}
                     <div className="space-y-4 mb-10 pl-2">
                         <form onSubmit={handleSearchSubmit} className="flex h-12 max-w-2xl shadow-sm border border-dark-color-bar/10">
                             <input
@@ -111,7 +84,7 @@ export default function AllCategoriesPage() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="bg-search-button hover:bg-website-name transition-colors w-16 flex items-center justify-center flex-shrink-0 text-white disabled:opacity-50"
+                                className="bg-search-button hover:bg-website-name transition-colors w-16 flex items-center justify-center flex-shrink-0 text-white disabled:opacity-50 cursor-pointer"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor" className="w-6 h-6">
                                     <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
@@ -137,6 +110,7 @@ export default function AllCategoriesPage() {
                         </div>
                     </div>
 
+                    {/* Стан 1: Сторінка тільки відкрилася */}
                     {!isSearchPerformed && (
                         <div className="mt-12 p-8 border border-dashed border-dark-color-bar/20 rounded-sm bg-brand-border/5">
                             <p className="text-main-text/60 italic text-center text-lg leading-relaxed">
@@ -146,18 +120,21 @@ export default function AllCategoriesPage() {
                         </div>
                     )}
 
+                    {/* Стан 2: Завантаження */}
                     {loading && (
                         <div className="text-center py-8 italic text-main-text animate-pulse">
                             Сортування та фільтрація глобальних категорій у базі PostgreSQL...
                         </div>
                     )}
 
+                    {/* Стан 3: Помилка */}
                     {!loading && error && (
                         <div className="bg-[#FDF2F2] border-l-4 border-[#A01E36] p-4 text-sm font-serif italic text-[#A01E36]">
                             {error}
                         </div>
                     )}
 
+                    {/* Стан 4: Результати */}
                     {!loading && !error && isSearchPerformed && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <h2 className="text-website-name text-lg font-bold italic border-b border-dark-color-bar/20 pb-2 uppercase mb-6">
@@ -165,37 +142,28 @@ export default function AllCategoriesPage() {
                             </h2>
 
                             {categories.length === 0 ? (
-                                <div className="py-10 text-center border border-dashed border-dark-color-bar/20 rounded-sm bg-brand-border/10">
+                                <div className="py-10 text-center border border-dashed border-dark-color-bar/20 rounded-sm bg-brand-border/10 flex flex-col items-center justify-center gap-5">
                                     <p className="text-main-text font-serif text-xl italic">
                                         Категорій за такими критеріями фільтрації не знайдено.
                                     </p>
+                                    <button
+                                        onClick={() => router.push('/category/create')}
+                                        className="bg-search-button hover:bg-website-name text-white font-bold px-6 py-2.5 uppercase tracking-wider text-sm transition-colors shadow-sm rounded-sm cursor-pointer"
+                                    >
+                                        + Створити категорію
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {categories.map((cat: any) => (
                                         <div
                                             key={cat.id}
-                                            onClick={() => router.push(`/category/${cat.id || cat.slug}`)}
-                                            // ДОДАНО: relative і group для кнопки видалення
-                                            className="relative group p-5 bg-brand-border/10 border border-dark-color-bar/10 hover:border-website-name hover:bg-brand-border/30 transition-all cursor-pointer shadow-2xs rounded-sm flex flex-col justify-between"
+                                            onClick={() => router.push(`/category/${cat.id}`)}
+                                            className="p-5 bg-brand-border/10 border border-dark-color-bar/10 hover:border-website-name hover:bg-brand-border/30 transition-all cursor-pointer shadow-2xs rounded-sm flex flex-col justify-between"
                                         >
-                                            {/* ДОДАНО: Кнопка видалення (показується тільки адмінам при наведенні) */}
-                                            {isAdmin && (
-                                                <button
-                                                    onClick={(e) => handleDeleteCategory(cat.id, e)}
-                                                    className="absolute top-3 right-3 text-[#A01E36] bg-[#FFF5F5] hover:bg-[#A01E36] hover:text-white border border-[#A01E36]/30 px-2 py-1 text-[10px] uppercase tracking-wider font-bold rounded-sm transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                                                    title="Видалити категорію назавжди"
-                                                >
-                                                    ✕ Видалити
-                                                </button>
-                                            )}
-
-                                            <h3 className="text-website-links font-bold text-lg mb-2 pr-20">
+                                            <h3 className="text-website-links font-bold text-lg mb-2">
                                                 📁 {cat.name}
                                             </h3>
-                                            <p className="text-xs text-gray-600 italic line-clamp-2">
-                                                {cat.description || "Опис структури знань відсутній."}
-                                            </p>
                                         </div>
                                     ))}
                                 </div>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation'; // роутер для перенаправлення
+import { useRouter, useSearchParams } from 'next/navigation';
 import { articleService } from '@/services/api';
 // динамічний імпорт Quill з патчем сумісності під Quill 2.0
 const ReactQuill = dynamic(
@@ -37,7 +37,9 @@ const ReactQuill = dynamic(
 import 'react-quill-new/dist/quill.snow.css';
 
 export default function EditArticlePage() {
-    const router = useRouter(); // Ініціалізуємо роутер
+    const router = useRouter(); // ініціалізація роутера
+    const searchParams = useSearchParams();
+    const originalSlug = searchParams.get('slug') || '';
 
     // стандартні стани форми пошуку
     const [title, setTitle] = useState("");
@@ -84,8 +86,7 @@ export default function EditArticlePage() {
             }
         };
     }, []);
-
-    // ФУНКЦІЯ ОБРОБКИ ПУБЛІКАЦІЇ СТАТТІ
+    // обробка публікації статті
     const handlePublish = async () => {
         if (!title.trim()) {
             alert("Помилка: Назва статті обов'язкова.");
@@ -99,11 +100,31 @@ export default function EditArticlePage() {
         setIsSubmitting(true);
 
         try {
-            // ЗАСТОСУВАННЯ ФУНКЦІЇ СЕРВІСУ: замість 20 рядків fetch — один рядок сервісу
-            const data = await articleService.createArticle(title, content, comment);
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+            const token = localStorage.getItem('wikpidia_token');
 
+            const response = await fetch(`${baseUrl}/api/articles`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    title,
+                    content,
+                    comment,
+                    // ДОДАНО: передаємо slug оригінальної статті якщо це правка
+                    originalArticleSlug: originalSlug || null
+                })
+            });
+
+            if (!response.ok) throw new Error('Помилка публікації');
+
+            const data = await response.json();
             const articleSlug = data.slug || data.id;
-            alert("Статтю успішно опубліковано!");
+            alert(originalSlug
+                ? "Правку успішно надіслано на модерацію!"
+                : "Статтю успішно опубліковано!");
             router.push(`/article/${articleSlug}`);
 
         } catch (error) {

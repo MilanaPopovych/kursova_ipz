@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -34,32 +34,47 @@ export default function DiscussionPage() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Перевірка, чи має користувач права на видалення
-    const isAuthorizedToModerate = user && (user.role === 'Адмін' || user.role === 'Адміністратор' || user.role === 'ADMIN' || user.role === 'Головний редактор');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalElements, setTotalElements] = useState(0);
+    const itemsPerPage = 5;
 
-    const loadData = () => {
+    const isPrivileged = user && (user.role === 'Адміністратор' || user.role === 'Адмін' || user.role === 'ADMIN' || user.role === 'Головний редактор');
+
+    const fetchDiscussions = useCallback(async () => {
         if (!slug) return;
         setLoading(true);
 
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+
+        try {
+            const res = await fetch(`${baseUrl}/api/articles/${slug}/discussions?page=${currentPage - 1}&size=${itemsPerPage}`);
+            if (!res.ok) throw new Error("Помилка завантаження");
+
+            const data = await res.json();
+
+            setDbTopics(data.content || (Array.isArray(data) ? data : []));
+            setTotalPages(data.totalPages || 1);
+            setTotalElements(data.totalElements || (Array.isArray(data) ? data.length : 0));
+            setServerError(null);
+        } catch (err) {
+            console.error("Discussion fetch error:", err);
+            setServerError("Не вдалося завантажити історію обговорень з сервера.");
+        } finally {
+            setLoading(false);
+        }
+    }, [slug, currentPage]);
+
+    useEffect(() => {
+        if (!slug) return;
         articleService.getArticleBySlug(slug)
             .then((data: any) => setArticleTitle(data.title || slug))
             .catch(() => setArticleTitle(`Стаття ${slug}`));
-
-        articleService.getDiscussionTopics(slug)
-            .then((data: DiscussionTopic[]) => {
-                setDbTopics(data || []);
-                setServerError(null);
-            })
-            .catch((err) => {
-                console.error("Discussion fetch error:", err);
-                setServerError("Не вдалося завантажити історію обговорень з сервера.");
-            })
-            .finally(() => setLoading(false));
-    };
+    }, [slug]);
 
     useEffect(() => {
-        loadData();
-    }, [slug]);
+        fetchDiscussions();
+    }, [fetchDiscussions]);
 
     useEffect(() => {
         if (topicSearch.trim().length > 0) {
@@ -76,7 +91,7 @@ export default function DiscussionPage() {
 
     const handleAddTopic = async () => {
         if (!token) {
-            alert("Помилка авторизації: Лише зареєстровані автори системи можуть брати участь в обговореннях!");
+            alert("Помилка доступу: Залишати коментарі можуть лише авторизовані користувачі!");
             router.push('/login');
             return;
         }
@@ -88,32 +103,52 @@ export default function DiscussionPage() {
 
         setIsSubmitting(true);
         try {
-            // ДОДАНО: Дістаємо ім'я користувача. Якщо раптом поля username немає, беремо login, інакше "Користувач"
-            // @ts-ignore - ігноруємо помилку TS, якщо тип user не повністю описаний
-            const authorName = user?.username || user?.login || "Користувач";
-
-            // ЗМІНЕНО: Додали authorName у виклик функції
-            await articleService.createDiscussionTopic(slug, topicSearch, comment, authorName, token);
-
+            await articleService.createDiscussionTopic(slug, topicSearch, comment, user?.username || '', token);
             handleCancel();
-            loadData();
+
+            if (currentPage === 1) {
+                fetchDiscussions();
+            } else {
+                setCurrentPage(1);
+            }
         } catch (err: any) {
-            alert(err.message || "Сталася помилка під час публікації.");
+            if (err.status === 401 || err.message?.includes("401")) {
+                alert("Ваша сесія застаріла або ви не авторизовані. Будь ласка, увійдіть знову.");
+                router.push('/login');
+            } else {
+                alert(err.message || "Сталася помилка під час публікації.");
+            }
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleDeleteTopic = async (topicId: number) => {
-        const confirmDelete = window.confirm("🚨 Ви впевнені, що хочете назавжди видалити цей коментар?");
+        const confirmDelete = window.confirm("Ви впевнені, що хочете назавжди видалити цей коментар?");
         if (!confirmDelete || !token) return;
 
         try {
             await articleService.deleteDiscussionTopic(slug, topicId, token);
-            loadData();
+
+            if (dbTopics.length === 1 && currentPage > 1) {
+                setCurrentPage(prev => prev - 1);
+            } else {
+                fetchDiscussions();
+            }
         } catch (err: any) {
-            alert(err.message || "Не вдалося видалити коментар.");
+            if (err.status === 401) {
+                alert("Немає прав доступу. Авторизуйтесь як Адміністратор.");
+                router.push('/login');
+            } else {
+                alert(err.message || "Не вдалося видалити коментар.");
+            }
         }
+    };
+
+    const handleReplyClick = (authorName: string) => {
+        const cleanName = authorName ? authorName.trim() : "author";
+        setTopicSearch(`Відповідь для @${cleanName}: `);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleCancel = () => {
@@ -145,12 +180,12 @@ export default function DiscussionPage() {
                     )}
 
                     <div className="space-y-6">
-                        {/* ФОРМА ДОДАВАННЯ КОМЕНТАРЯ */}
-                        <div className="relative border border-dark-color-bar/20 rounded-sm overflow-hidden">
-                            <div className="bg-dark-color-bar px-4 py-2 text-white font-bold italic text-sm uppercase tracking-wide">
+                        {/* Форма додавання коментаря */}
+                        <div className="relative border border-dark-color-bar/20 rounded-sm">
+                            <div className="bg-dark-color-bar px-4 py-2 text-white font-bold italic text-sm uppercase tracking-wide rounded-t-sm">
                                 Введіть назву теми обговорення...
                             </div>
-                            <div className="p-4 bg-brand-border/20">
+                            <div className="p-4 bg-brand-border/20 rounded-b-sm">
                                 <input
                                     type="text"
                                     value={topicSearch}
@@ -161,7 +196,7 @@ export default function DiscussionPage() {
                                 />
 
                                 {isDropdownOpen && (
-                                    <div className="absolute left-4 right-4 mt-1 bg-white border border-dark-color-bar/20 shadow-lg z-10 max-h-48 overflow-y-auto rounded-sm">
+                                    <div className="absolute left-4 right-4 mt-1 bg-white border border-dark-color-bar/20 shadow-lg z-50 max-h-48 overflow-y-auto rounded-sm">
                                         {filteredTopics.length > 0 ? (
                                             filteredTopics.map((topic) => (
                                                 <div
@@ -219,10 +254,15 @@ export default function DiscussionPage() {
                             )}
                         </div>
 
-                        {/* ВІДОБРАЖЕННЯ ІСНУЮЧИХ ОБГОВОРЕНЬ */}
+                        {/* Список обговорень */}
                         <div className="mt-12 pt-8 border-t-2 border-brand-border/50 space-y-4">
-                            <div className="bg-light-color-bar px-4 py-2 border-b-2 border-dark-color-bar/20 font-bold italic text-main-text uppercase tracking-wide">
-                                Історія обговорень ({dbTopics.length})
+                            <div className="bg-light-color-bar px-4 py-2 border-b-2 border-dark-color-bar/20 font-bold italic text-main-text uppercase tracking-wide flex justify-between items-center">
+                                <span>Історія обговорень ({totalElements})</span>
+                                {totalPages > 1 && (
+                                    <span className="text-[11px] text-gray-400 normal-case font-mono">
+                                        Сторінка {currentPage} з {totalPages}
+                                    </span>
+                                )}
                             </div>
 
                             {dbTopics.length === 0 && !loading ? (
@@ -231,27 +271,84 @@ export default function DiscussionPage() {
                                 </p>
                             ) : (
                                 dbTopics.map(topic => (
-                                    <div key={topic.id} className="border border-brand-border/50 rounded-sm p-4 bg-[#F8FAFC] relative group">
-                                        {isAuthorizedToModerate && (
-                                            <button
-                                                onClick={() => handleDeleteTopic(topic.id)}
-                                                className="absolute top-4 right-4 text-[#A01E36] bg-[#FFF5F5] hover:bg-[#A01E36] hover:text-white border border-[#A01E36]/30 px-3 py-1 text-[10px] uppercase tracking-wider font-bold rounded-sm transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                                                title="Видалити цей коментар"
-                                            >
-                                                Видалити
-                                            </button>
+                                    <div
+                                        key={topic.id}
+                                        id={`comment-${topic.id}`}
+                                        className="border border-brand-border/50 rounded-sm p-4 bg-[#F8FAFC] relative group scroll-mt-24"
+                                    >
+                                        {token && (
+                                            <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => handleReplyClick(topic.author || 'Анонім')}
+                                                    className="text-website-links bg-white hover:bg-brand-border/20 border border-brand-border/60 px-3 py-1 text-[10px] uppercase tracking-wider font-bold rounded-sm transition-colors cursor-pointer"
+                                                >
+                                                    Відповідь
+                                                </button>
+
+                                                {(isPrivileged || (user && topic.author === user.username)) && (
+                                                    <button
+                                                        onClick={() => handleDeleteTopic(topic.id)}
+                                                        className="text-[#A01E36] bg-[#FFF5F5] hover:bg-[#A01E36] hover:text-white border border-[#A01E36]/30 px-3 py-1 text-[10px] uppercase tracking-wider font-bold rounded-sm transition-colors cursor-pointer"
+                                                    >
+                                                        Видалити
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
 
-                                        <h3 className="font-bold text-website-name text-lg mb-2 pr-20">{topic.title}</h3>
+                                        <h3 className="font-bold text-website-name text-lg mb-2 pr-32">{topic.title}</h3>
                                         <p className="text-sm text-main-text whitespace-pre-wrap pr-4">{topic.content}</p>
                                         <div className="text-[11px] text-gray-500 mt-3 pt-2 border-t border-gray-200 uppercase tracking-wider">
-                                            Автор: <span className="font-bold">{topic.author || 'Анонім'}</span> • {topic.createdAt ? new Date(topic.createdAt).toLocaleString('uk-UA') : 'Невідомий час'}
+                                            Автор: <span className="font-bold">{topic.author || 'Анонім'}</span> •{' '}
+                                            {topic.createdAt
+                                                ? new Date(topic.createdAt).toLocaleString('uk-UA', {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })
+                                                : 'Невідомий час'}
                                         </div>
                                     </div>
                                 ))
                             )}
-                        </div>
 
+                            {/* Пагінація */}
+                            {totalPages > 1 && (
+                                <div className="flex justify-center items-center gap-1.5 pt-6 font-mono text-sm">
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-2.5 py-1 border border-dark-color-bar/20 rounded-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-border/20 transition-colors cursor-pointer font-sans font-bold"
+                                    >
+                                        &lt;
+                                    </button>
+
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNumber => (
+                                        <button
+                                            key={pageNumber}
+                                            onClick={() => setCurrentPage(pageNumber)}
+                                            className={`px-3 py-1 border rounded-sm transition-all cursor-pointer font-bold ${
+                                                currentPage === pageNumber
+                                                    ? "bg-search-button text-white border-search-button shadow-2xs"
+                                                    : "bg-white text-main-text border-dark-color-bar/20 hover:bg-brand-border/20"
+                                            }`}
+                                        >
+                                            {pageNumber}
+                                        </button>
+                                    ))}
+
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-2.5 py-1 border border-dark-color-bar/20 rounded-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-border/20 transition-colors cursor-pointer font-sans font-bold"
+                                    >
+                                        &gt;
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </main>
             </div>

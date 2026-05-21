@@ -10,15 +10,17 @@ import { useRouter } from 'next/navigation';
 export default function PendingEditsPage() {
     const [pendingEdits, setPendingEdits] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const router = useRouter();
 
     const fetchPendingEdits = async () => {
         setLoading(true);
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+        const activeToken = token || localStorage.getItem('wikpidia_token');
+
         try {
             const res = await fetch(`${baseUrl}/api/articles/pending`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${activeToken}` }
             });
 
             if (res.status === 401 || res.status === 403) {
@@ -38,19 +40,19 @@ export default function PendingEditsPage() {
     };
 
     useEffect(() => {
-        if (token) {
-            fetchPendingEdits();
-        }
+        fetchPendingEdits();
     }, [token]);
 
     const handleApprove = async (id: number) => {
         if (!window.confirm("Опублікувати цю правку на сайті?")) return;
 
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+        const activeToken = token || localStorage.getItem('wikpidia_token');
+
         try {
             const res = await fetch(`${baseUrl}/api/articles/${id}/approve`, {
                 method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${activeToken}` }
             });
             if (res.ok) {
                 alert("Правку успішно опубліковано!");
@@ -67,10 +69,12 @@ export default function PendingEditsPage() {
         if (!window.confirm("Назавжди видалити цей запит на правку?")) return;
 
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+        const activeToken = token || localStorage.getItem('wikpidia_token');
+
         try {
             const res = await fetch(`${baseUrl}/api/articles/${slug}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${activeToken}` }
             });
             if (res.ok) {
                 setPendingEdits(prev => prev.filter(edit => edit.slug !== slug));
@@ -115,7 +119,6 @@ export default function PendingEditsPage() {
                                         </div>
 
                                         <div className="flex gap-2 shrink-0">
-                                            {/* Кнопка перегляду (можна направити на чернетку) */}
                                             <Link
                                                 href={`/article/${edit.slug}`}
                                                 className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 text-[11px] uppercase tracking-wider font-bold transition-colors"

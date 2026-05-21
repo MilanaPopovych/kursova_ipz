@@ -9,7 +9,6 @@ import ArticleTabs from '@/components/ArticleTabs';
 import { articleService } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 
-// Описуємо типи даних для TypeScript
 interface Category {
     id: number;
     name: string;
@@ -24,12 +23,15 @@ interface ArticleData {
     version?: string;
     author?: string;
     comment?: string;
+    isPublished?: boolean;
+    originalArticleSlug?: string;
 }
 
 export default function ArticlePage() {
     const params = useParams();
     const router = useRouter();
     const slug = params.slug as string;
+    const [revisions, setRevisions] = useState<any[]>([]);
 
     const { user, token } = useAuth();
 
@@ -39,9 +41,13 @@ export default function ArticlePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    const [isSaved, setIsSaved] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+
     const [allCategories, setAllCategories] = useState<Category[]>([]);
     const [categoryError, setCategoryError] = useState<string | null>(null);
+    const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
     const loadArticleData = () => {
         if (!slug) return;
@@ -55,16 +61,38 @@ export default function ArticlePage() {
         loadArticleData();
     }, [slug]);
 
-    // Завантаження всіх категорій для адмін-панелі
+    // Перевірка чи збережена стаття
+    useEffect(() => {
+        if (token && slug) {
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+            fetch(`${baseUrl}/api/users/saved/${slug}/check`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+                .then(res => res.json())
+                .then(data => setIsSaved(data.isSaved))
+                .catch(err => console.error("Помилка перевірки збереження:", err));
+        }
+    }, [slug, token]);
+
+    // Завантаження категорій для адміна
     useEffect(() => {
         if (user && (user.role === 'Адмін' || user.role === 'Адміністратор' || user.role === 'ADMIN' || user.role === 'Головний редактор')) {
             const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
             fetch(`${baseUrl}/api/categories`)
                 .then(res => res.json())
                 .then(data => setAllCategories(data || []))
-                .catch(err => console.error("Помилка завантаження списку категорій:", err));
+                .catch(err => console.error("Помилка завантаження категорій:", err));
         }
     }, [user]);
+
+    useEffect(() => {
+        if (!slug) return;
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+        fetch(`${baseUrl}/api/articles/${slug}/revisions`)
+            .then(res => res.json())
+            .then(data => setRevisions(Array.isArray(data) ? data : []))
+            .catch(err => console.error("Помилка завантаження правок:", err));
+    }, [slug]);
 
     const handleAddCategory = async (e: React.ChangeEvent<HTMLSelectElement>) => {
         const categoryId = Number(e.target.value);
@@ -73,7 +101,8 @@ export default function ArticlePage() {
         try {
             await articleService.assignCategory(slug, categoryId, token);
             loadArticleData();
-            e.target.value = "";
+            setShowCategoryDropdown(false);
+            setCategoryError(null);
         } catch (err: unknown) {
             setCategoryError("Не вдалося додати категорію.");
         }
@@ -95,7 +124,7 @@ export default function ArticlePage() {
 
     const handleDelete = async () => {
         const confirmDelete = window.confirm(
-            "🚨 УВАГА! Ви впевнені, що хочете остаточно видалити цю статтю?"
+            "УВАГА! Ви впевнені, що хочете остаточно видалити цю статтю?"
         );
         if (!confirmDelete || !token) return;
 
@@ -110,20 +139,37 @@ export default function ArticlePage() {
         }
     };
 
-    const handleSaveArticle = async () => {
+    const handleToggleSave = async () => {
         if (!token) {
+            alert("Будь ласка, авторизуйтесь, щоб зберігати статті!");
             router.push('/login');
             return;
         }
 
         setIsSaving(true);
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+
         try {
-            await articleService.saveArticleToProfile(slug, token);
-            alert("Статтю успішно збережено у вашому особистому кабінеті.");
+            if (isSaved) {
+                const res = await fetch(`${baseUrl}/api/users/saved/${slug}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) setIsSaved(false);
+            } else {
+                const res = await fetch(`${baseUrl}/api/users/saved`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ slug: slug, title: article?.title || slug })
+                });
+                if (res.ok) setIsSaved(true);
+            }
         } catch (err: unknown) {
-            console.error("error saving article:", err);
-            const errorMessage = err instanceof Error ? err.message : "Не вдалося зберегти статтю.";
-            alert(errorMessage);
+            console.error("Помилка збереження статті:", err);
+            alert("Не вдалося оновити статус збереження.");
         } finally {
             setIsSaving(false);
         }
@@ -156,7 +202,7 @@ export default function ArticlePage() {
 
                     {!loading && error && (
                         <div className="bg-[#FDF2F2] border-l-4 border-[#A01E36] p-6 font-serif rounded-sm min-h-[400px] flex flex-col justify-center items-center text-center">
-                            <span className="text-3xl mb-2">⚠️</span>
+                            <span className="text-3xl mb-2">⚠</span>
                             <p className="text-[#A01E36] font-bold text-lg mb-1 italic">{error}</p>
                             <Link href="/profile" className="mt-6 text-xs text-website-links hover:underline font-bold uppercase tracking-wider">
                                 Повернутися до особистого кабінету
@@ -177,18 +223,19 @@ export default function ArticlePage() {
                             {/* Інструменти збоку */}
                             {hasMetadata && (
                                 <aside className="w-full lg:w-80 flex flex-col gap-6 shrink-0">
-                                    {/* Швидкі дії користувача */}
+                                    {/* Кнопка збереження */}
                                     <div className="border-2 border-brand-border rounded-sm overflow-hidden shadow-sm bg-white p-4">
                                         <button
                                             type="button"
                                             disabled={isSaving}
-                                            onClick={handleSaveArticle}
-                                            className="w-full bg-search-button hover:bg-website-name text-white font-serif font-bold text-xs uppercase tracking-wider py-2.5 px-4 shadow-2xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                            onClick={handleToggleSave}
+                                            className={`w-full font-serif font-bold text-xs uppercase tracking-wider py-2.5 px-4 shadow-2xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                                isSaved
+                                                    ? "bg-[#FDF2F2] text-[#A01E36] border border-[#A01E36] hover:bg-[#A01E36] hover:text-white"
+                                                    : "bg-search-button text-white hover:bg-website-name border border-transparent"
+                                            }`}
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
-                                            </svg>
-                                            {isSaving ? "Збереження..." : "Зберегти статтю"}
+                                            {isSaving ? "Обробка..." : (isSaved ? "★ Не зберігати статтю" : "☆ Зберегти статтю")}
                                         </button>
                                     </div>
 
@@ -201,7 +248,7 @@ export default function ArticlePage() {
                                         </div>
                                     )}
 
-                                    {/* Присвоєні категорії статті */}
+                                    {/* Категорії статті */}
                                     <div className="border-2 border-brand-border rounded-sm overflow-hidden shadow-sm bg-white">
                                         <div className="bg-brand-border p-2 text-center font-bold text-xs uppercase tracking-wide text-website-name border-b border-dark-color-bar/20">
                                             Категорії матеріалу
@@ -229,38 +276,56 @@ export default function ArticlePage() {
                                         </div>
                                     </div>
 
-                                    {/* 1. Блок керування категоріями (адмін) */}
+                                    {/* Керування категоріями (адмін) */}
                                     {isAuthorizedToSubmoderate && (
-                                        <div className="border-2 border-brand-border rounded-sm overflow-hidden shadow-sm bg-[#F8FAFC] space-y-4 p-4">
-                                            <div className="font-bold text-xs uppercase tracking-wide text-gray-700 flex items-center gap-1.5 border-b border-gray-200 pb-2">
-                                                Додати статтю в категорію
+                                        <div className="border-2 border-brand-border rounded-sm overflow-hidden shadow-sm bg-[#F8FAFC] p-4">
+                                            <div className="font-bold text-xs uppercase tracking-wide text-gray-700 flex items-center gap-1.5 border-b border-gray-200 pb-2 mb-3">
+                                                Керування категоріями
                                             </div>
 
                                             {categoryError && (
-                                                <p className="text-[11px] text-[#A01E36] italic">{categoryError}</p>
+                                                <p className="text-[11px] text-[#A01E36] italic mb-2">{categoryError}</p>
                                             )}
 
-                                            <select
-                                                onChange={handleAddCategory}
-                                                defaultValue=""
-                                                className="w-full p-2 bg-white border border-dark-color-bar/20 outline-none text-xs font-serif italic cursor-pointer"
-                                            >
-                                                <option value="" disabled>Оберіть варіант</option>
-                                                {allCategories
-                                                    .filter(c => !article.categories?.some((ac: Category) => ac.id === c.id))
-                                                    .map(c => (
-                                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                                    ))
-                                                }
-                                            </select>
+                                            {!showCategoryDropdown ? (
+                                                <button
+                                                    onClick={() => setShowCategoryDropdown(true)}
+                                                    className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-xs uppercase tracking-wider py-2 transition-colors cursor-pointer rounded-sm"
+                                                >
+                                                    + Додати категорію
+                                                </button>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    <select
+                                                        onChange={handleAddCategory}
+                                                        defaultValue=""
+                                                        className="w-full p-2 bg-white border border-dark-color-bar/40 shadow-sm outline-none text-xs font-serif italic cursor-pointer focus:border-search-button transition-colors"
+                                                    >
+                                                        <option value="" disabled>Оберіть категорію...</option>
+                                                        {allCategories
+                                                            .filter(c => !article.categories?.some((ac: Category) => ac.id === c.id))
+                                                            .map(c => (
+                                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                                            ))
+                                                        }
+                                                    </select>
+
+                                                    <button
+                                                        onClick={() => setShowCategoryDropdown(false)}
+                                                        className="w-full bg-white hover:bg-gray-100 border border-gray-300 text-gray-600 font-bold text-xs uppercase tracking-wider py-1.5 transition-colors cursor-pointer rounded-sm"
+                                                    >
+                                                        Скасувати
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
-                                    {/* 2. Блок НЕБЕЗПЕЧНА ЗОНА - Видалення (адмін) */}
+                                    {/* видалення статті (адмін) */}
                                     {isAuthorizedToSubmoderate && (
                                         <div className="border-2 border-[#A01E36]/30 rounded-sm overflow-hidden shadow-sm bg-[#FFF5F5] p-4 mt-2">
                                             <div className="font-bold text-xs uppercase tracking-wide text-[#A01E36] flex items-center gap-1.5 border-b border-[#A01E36]/10 pb-2 mb-3">
-                                                Небезпечна зона
+                                                Ви впевнені, що хочете видалити статтю?
                                             </div>
 
                                             <button
@@ -273,20 +338,69 @@ export default function ArticlePage() {
                                             </button>
                                         </div>
                                     )}
-
-                                    {/* Версія, автор */}
-                                    {(article.version || article.author || article.comment) && (
-                                        <div className="border-2 border-brand-border rounded-sm overflow-hidden shadow-sm bg-white text-xs">
+                                    {/* версія та автор */}
+                                    {(article.version || article.author) && (
+                                        <div className="border-2 border-brand-border rounded-sm overflow-hidden shadow-sm bg-white text-xs mt-2">
                                             <table className="w-full border-collapse">
                                                 <tbody>
+                                                {/* Статус правки */}
+                                                <tr className="border-b border-dark-color-bar/10">
+                                                    <td className="p-2 bg-light-color-bar font-bold w-1/3 italic">Статус</td>
+                                                    <td className="p-2 bg-white italic font-bold">
+                                                        {!article.isPublished
+                                                            ? <span className="text-main-text">Оригінал</span>
+                                                            : article.isPublished
+                                                                ? <span className="text-green-600">✓ Затверджено</span>
+                                                                : <span className="text-[#A01E36]">Ще не затверджено</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+
                                                 {article.version && (
-                                                    <tr className="border-b border-dark-color-bar/10"><td className="p-2 bg-light-color-bar font-bold w-1/3 italic">Версія</td><td className="p-2 bg-white italic font-bold">v{article.version}</td></tr>
+                                                    <tr className="border-b border-dark-color-bar/10">
+                                                        <td className="p-2 bg-light-color-bar font-bold italic">Версія</td>
+                                                        <td className="p-2 bg-white italic font-bold">v{article.version}</td>
+                                                    </tr>
                                                 )}
                                                 {article.author && (
-                                                    <tr className="border-b border-dark-color-bar/10"><td className="p-2 bg-light-color-bar font-bold italic">Автор</td><td className="p-2 bg-white italic text-website-links font-bold">@{article.author}</td></tr>
+                                                    <tr className="border-b border-dark-color-bar/10">
+                                                        <td className="p-2 bg-light-color-bar font-bold italic">Автор</td>
+                                                        <td className="p-2 bg-white italic text-website-links font-bold">@{article.author}</td>
+                                                    </tr>
                                                 )}
                                                 </tbody>
                                             </table>
+                                        </div>
+                                    )}
+
+                                    {/* Таблиця правок */}
+                                    {revisions.length > 0 && (
+                                        <div className="border-2 border-brand-border rounded-sm overflow-hidden shadow-sm bg-white text-xs mt-2">
+                                            <div className="bg-brand-border p-2 text-center font-bold text-xs uppercase tracking-wide text-website-name border-b border-dark-color-bar/20">
+                                                Правки статті ({revisions.length})
+                                            </div>
+                                            <div className="divide-y divide-dark-color-bar/10">
+                                                {revisions.map((rev: any) => (
+                                                    <div key={rev.id} className="p-2 flex justify-between items-center gap-2">
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="italic text-gray-500 text-[10px]">
+                                                                @{rev.author || 'Анонім'} </span>
+                                                            <span className="italic text-gray-400 text-[10px]"> {rev.createdAt || '—'} </span>
+                                                            {rev.comment && (
+                                                                <span className="italic text-main-text/70 text-[10px] line-clamp-1">
+                                                                    {rev.comment}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <Link
+                                                            href={`/article/${rev.slug}`}
+                                                            className="shrink-0 bg-light-color-bar hover:bg-brand-border border border-dark-color-bar/20 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-main-text transition-colors"
+                                                        >
+                                                            Переглянути
+                                                        </Link>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </aside>

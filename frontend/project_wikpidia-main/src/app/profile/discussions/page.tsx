@@ -4,190 +4,171 @@ import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext'; // ІМПОРТ КОНТЕКСТУ БЕЗПЕКИ
 
 export default function MyDiscussionsPage() {
-    const [isMounted, setIsMounted] = useState(false);
-    const router = useRouter();
-    // Отримуємо глобальний стан авторизації
-    const { token, loading: authLoading } = useAuth();
-
-    const [searchQuery, setSearchQuery] = useState("");
     const [discussions, setDiscussions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalElements, setTotalElements] = useState(0);
+
+    const { token } = useAuth();
+    const router = useRouter();
+
     useEffect(() => {
-        setIsMounted(true);
-    }, []);
-    // запит до spring boot api з передачею токена
-    useEffect(() => {
-        if (!isMounted) return;
-        // токена немає = користувач не авторизований
-        if (!authLoading && !token) {
-            setError("Авторизуйтеся для перегляду ваших обговорень.");
+        const activeToken = token || localStorage.getItem('wikpidia_token');
+        if (!activeToken) {
+            setError("Ви не авторизовані. Будь ласка, увійдіть в акаунт.");
             setLoading(false);
-            router.push('/login');
             return;
         }
 
-        if (!token) return;
+        const fetchMyDiscussions = async () => {
+            setLoading(true);
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
-        setLoading(true);
-        setError(null);
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+            try {
+                const res = await fetch(`${baseUrl}/api/discussions/my?page=${currentPage}&size=5`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${activeToken}`
+                    }
+                });
 
-        fetch(`${baseUrl}/api/users/discussions`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                // передаємо токен у форматі Bearer для Spring Security Guard
-                'Authorization': `Bearer ${token}`
-            }
-        })
-            .then((res) => {
                 if (res.status === 401 || res.status === 403) {
-                    throw new Error('Ваша сесія застаріла. Будь ласка, увійдіть в акаунт знову.');
+                    setError("Доступ заборонено або сесія застаріла.");
+                    return;
                 }
-                if (!res.ok) throw new Error('Не вдалося завантажити історію обговорень з бази даних.');
-                return res.json();
-            })
-            .then((data: any) => {
-                setDiscussions(data || []);
-            })
-            .catch((err: any) => {
-                console.error("Discussions fetch error:", err);
-                setError(err.message || "Сервер не відповідає. Перевірте підключення до PostgreSQL/Spring Boot.");
-            })
-            .finally(() => {
-                setLoading(false);
-            });
-    }, [isMounted, token, authLoading, router]);
 
-    if (!isMounted) return null;
-    // фільтрація обговорень
-    const filteredDiscussions = discussions.filter((disc: any) =>
-        disc.articleTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        disc.topic?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        disc.comment?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+                if (!res.ok) throw new Error("Помилка при отриманні обговорень.");
+
+                const data = await res.json();
+
+                setDiscussions(data.content || []);
+                setTotalPages(data.totalPages || 1);
+                setTotalElements(data.totalElements || 0);
+
+            } catch (err: any) {
+                console.error("Fetch error:", err);
+                setError("Не вдалося підключитися до сервера.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchMyDiscussions();
+    }, [token, currentPage]);
+
+    const handleNextPage = () => {
+        if (currentPage < totalPages - 1) setCurrentPage(prev => prev + 1);
+    };
+    const handlePrevPage = () => {
+        if (currentPage > 0) setCurrentPage(prev => prev - 1);
+    };
 
     return (
         <div className="min-h-screen bg-white flex flex-col font-serif overflow-hidden">
             <Header />
             <div className="flex flex-row flex-grow w-full max-w-[1400px] mx-auto overflow-hidden">
                 <Sidebar />
+
                 <main className="flex-grow p-4 md:p-8 space-y-6 overflow-hidden">
-                    {/* кнопка швидкого повернення на профіль */}
-                    <div className="mb-2">
-                        <Link
-                            href="/profile"
-                            className="text-website-name hover:text-website-links font-bold italic flex items-center gap-2 group"
-                        >
-                            <span className="transform group-hover:-translate-x-1 transition-transform"> ← </span>
-                            Повернутися до особистого кабінету
+                    <div className="bg-search-button px-6 py-4 shadow-sm flex items-center justify-between">
+                        <h1 className="text-white text-2xl font-bold italic">Мої обговорення</h1>
+                        <Link href="/profile" className="text-white/80 text-sm hover:underline cursor-pointer">
+                            ← Повернутися до кабінету
                         </Link>
                     </div>
-                    {/* головний заголовок сторінки */}
-                    <div className="bg-search-button px-6 py-4 shadow-sm flex items-center gap-4">
-                        <div className="bg-white text-search-button p-2 rounded-full text-xl w-10 h-10 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="w-5 h-5" fill="currentColor">
-                                <path d="M416 208C416 305.2 330 384 224 384C197.3 384 171.9 379 148.8 370L67.2 413.2C57.9 418.1 46.5 416.4 39 409C31.5 401.6 29.8 390.1 34.8 380.8L70.4 313.6C46.3 284.2 32 247.6 32 208C32 110.8 118 32 224 32C330 32 416 110.8 416 208zM416 576C321.9 576 243.6 513.9 227.2 432C347.2 430.5 451.5 345.1 463 229.3C546.3 248.5 608 317.6 608 400C608 439.6 593.7 476.2 569.6 505.6L605.2 572.8C610.1 582.1 608.4 593.5 601 601C593.6 608.5 582.1 610.2 572.8 605.2L491.2 562C468.1 571 442.7 576 416 576z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <h1 className="text-white text-2xl font-bold italic">Мої обговорення</h1>
-                            <p className="text-white/80 text-sm italic">Історія ваших дискусій на WiKPIdia</p>
-                        </div>
-                    </div>
-                    {/* інструмент пошуку по коментарях */}
-                    <div className="border border-dark-color-bar/20 rounded-sm overflow-hidden bg-white shadow-2xs">
-                        <div className="p-4 bg-brand-border/10">
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                                placeholder="Фільтрувати обговорення за ключовими словами або назвою статті..."
-                                className="w-full p-2 bg-light-color-bar border border-dark-color-bar/10 outline-none text-sm italic placeholder:text-main-text/40"
-                            />
-                        </div>
-                    </div>
-                    {/* завантаження */}
-                    {(loading || authLoading) && (
-                        <div className="text-center py-12 font-serif italic text-main-text animate-pulse">
-                            Отримання історії коментарів...
-                        </div>
-                    )}
-                    {/* помилка зв'язку */}
-                    {!loading && !authLoading && error && (
-                        <div className="bg-[#FDF2F2] border-l-4 border-[#A01E36] p-4 text-sm font-serif italic text-[#A01E36]">
-                            {error}
-                        </div>
-                    )}
-                    {/* стрічка обговорень */}
-                    {!loading && !authLoading && !error && (
-                        <div className="space-y-4">
-                            {filteredDiscussions.length > 0 ? (
-                                filteredDiscussions.map((disc: any) => {
-                                    // обчислення slug статті (якщо бекенд надав готовий slug, берем його. Якщо ні — генеруємо автоматично з назви)
-                                    const articleTargetSlug = disc.articleSlug || (disc.articleTitle ? encodeURIComponent(disc.articleTitle.trim().toLowerCase().replace(/\s+/g, '-')) : "");
 
-                                    // відображення дати
-                                    const formattedDate = disc.createdAt ? new Date(disc.createdAt).toLocaleDateString('uk-UA') : (disc.date || "Не вказано");
+                    <div className="border border-dark-color-bar/20 rounded-sm bg-white shadow-sm p-6 min-h-[400px] flex flex-col">
 
-                                    return (
-                                        <div
-                                            key={disc.id}
-                                            className="border border-dark-color-bar/20 rounded-sm overflow-hidden bg-white shadow-2xs"
-                                        >
-                                            {/* Шапка картки дискусії з посиланнями на статтю */}
-                                            <div className="bg-dark-color-bar px-4 py-2 text-white text-sm font-bold flex flex-wrap justify-between items-center gap-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-white/70">Стаття:</span>
-                                                    <Link
-                                                        href={`/article/${articleTargetSlug}`}
-                                                        className="text-white hover:underline italic font-serif text-[15px]"
-                                                    >
-                                                        «{disc.articleTitle || "Без назви"}»
-                                                    </Link>
-                                                </div>
-                                                <span className="text-[12px] text-white/80 font-mono shrink-0">
-                                                    Дата: {formattedDate}
+                        {loading && discussions.length === 0 ? (
+                            <div className="text-center py-10 text-gray-500 italic animate-pulse">
+                                Завантаження історії ваших коментарів з бази даних...
+                            </div>
+                        ) : error ? (
+                            <div className="bg-[#FDF2F2] border-l-4 border-[#A01E36] p-6 text-center">
+                                <p className="text-[#A01E36] font-bold italic">{error}</p>
+                            </div>
+                        ) : discussions.length === 0 ? (
+                            <div className="text-center py-16">
+                                <span className="text-4xl mb-4 block">💬</span>
+                                <p className="text-lg italic text-gray-500 mb-2">Ви ще не залишили жодного коментаря.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 flex-grow">
+                                <p className="text-sm italic text-gray-500 border-b border-gray-100 pb-2 mb-4">
+                                    Всього знайдено коментарів: {totalElements}
+                                </p>
+
+                                {discussions.map((discussion) => (
+                                    <div key={discussion.id} className="border border-brand-border/50 p-4 bg-[#F8FAFC] rounded-sm hover:shadow-sm transition-shadow">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                                                <span className="bg-dark-color-bar text-white px-2 py-0.5 text-[10px] uppercase tracking-wider">
+                                                    Коментар
                                                 </span>
                                             </div>
-
-                                            {/* Вміст картки коментаря */}
-                                            <div className="p-4 bg-brand-border/5 space-y-2">
-                                                <div className="text-sm text-website-name font-bold italic">
-                                                    Тема: <span className="text-main-text not-italic font-normal">{disc.topic || "Загальне обговорення"}</span>
-                                                </div>
-                                                <div className="p-3 bg-white border border-dark-color-bar/10 rounded-xs text-sm italic text-main-text leading-relaxed relative">
-                                                    <span className="text-2xl text-search-button/20 font-serif absolute -top-2 left-1">“</span>
-                                                    <p className="pl-4 text-gray-700">{disc.comment || disc.content}</p>
-                                                </div>
-
-                                                {/* Кнопка переходу безпосередньо до гілки обговорень на сторінці статті */}
-                                                <div className="text-right pt-1">
-                                                    <Link
-                                                        href={`/article/${articleTargetSlug}/discussion`}
-                                                        className="text-[11px] text-website-links hover:underline italic font-bold uppercase tracking-wider"
-                                                    >
-                                                        Перейти до повної гілки обговорення →
-                                                    </Link>
-                                                </div>
-                                            </div>
+                                            <span className="text-xs text-gray-400 italic">
+                                                {discussion.createdAt
+                                                    ? new Date(discussion.createdAt).toLocaleString('uk-UA', {
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })
+                                                    : "Невідома дата"}
+                                            </span>
                                         </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="text-center py-12 border border-dashed border-dark-color-bar/20 bg-brand-border/5 rounded-sm">
-                                    <p className="text-gray-400 text-sm italic">Ви ще не брали участі в обговореннях статей.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
 
+                                        <p className="text-main-text text-sm mb-3 italic leading-relaxed border-l-2 border-search-button pl-3 bg-white p-2">
+                                            "{discussion.content || discussion.text}"
+                                        </p>
+
+                                        <div className="text-xs">
+                                            <span className="text-gray-500 mr-2">До статті:</span>
+                                            <Link
+                                                href={`/article/${discussion.articleSlug}/discussion#comment-${discussion.id}`}
+                                                className="text-website-links font-bold hover:underline"
+                                            >
+                                                Перейти до обговорення →
+                                            </Link>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {totalPages > 1 && (
+                                    <div className="flex items-center justify-between mt-8 pt-4 border-t border-gray-100">
+                                        <button
+                                            onClick={handlePrevPage}
+                                            disabled={currentPage === 0 || loading}
+                                            className="px-4 py-2 bg-gray-100 text-gray-700 font-bold text-xs uppercase tracking-wider disabled:opacity-50 hover:bg-gray-200 transition-colors cursor-pointer"
+                                        >
+                                            ← Попередні
+                                        </button>
+
+                                        <span className="text-sm italic text-gray-500">
+                                            Сторінка {currentPage + 1} з {totalPages}
+                                        </span>
+
+                                        <button
+                                            onClick={handleNextPage}
+                                            disabled={currentPage >= totalPages - 1 || loading}
+                                            className="px-4 py-2 bg-search-button text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50 hover:bg-website-name transition-colors cursor-pointer"
+                                        >
+                                            Наступні →
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </main>
             </div>
         </div>
